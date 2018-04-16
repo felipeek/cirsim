@@ -1,7 +1,7 @@
 first line always ignored.
 *comment
 .command parameters
-V1     input_A 0 5
-Isrc   input_B 0 50m
-Rres1  input_B output 15K
-Rres2  input_A output 20G
+V1     input_A 0 5meg
+Isrc   input_B 50m 10
+Rres1  input_B output 50
+Rres2  input_A output 10
