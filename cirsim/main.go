@@ -5,5 +5,5 @@ import (
 )
 
 func main() {
-	internal.ParserInit("C:\\Users\\Felipe\\Development\\go\\src\\github.com\\felipeek\\cirsim\\res\\example.spice")
+	internal.ParserInit("./res/example.spice")
 }
