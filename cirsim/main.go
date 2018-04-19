@@ -8,4 +8,5 @@ import (
 
 func main() {
 	internal.ParserInit(os.Args[1])
+	internal.ParserInit("./res/example.spice")
 }
