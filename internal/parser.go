@@ -353,7 +353,7 @@ func parserParseNumber(numberValue string) (bool, float64) {
 		return false, base * math.Pow(10.0, exp)
 	} else if parserIsNumberOnSignificandExpoentNotation(numberValue) {
 		baseNumber := 0
-		for numberValue[baseNumber] != 'E' {
+		for numberValue[baseNumber] != 'e' {
 			baseNumber = baseNumber + 1
 		}
 		base, _ := strconv.ParseFloat(numberValue[0:baseNumber], 64)
@@ -384,7 +384,7 @@ func parserIsNumberOnRegularNotation(numberValue string) bool {
 		return false
 	}
 
-	if !parserIsByteNumber(numberValue[stringPosition]) {
+	if !(parserIsByteNumber(numberValue[stringPosition]) || numberValue[stringPosition] == '-') {
 		return false
 	}
 
@@ -423,7 +423,7 @@ func parserIsNumberOnSINotation(numberValue string) bool {
 		return false
 	}
 
-	if !parserIsByteNumber(numberValue[stringPosition]) {
+	if !(parserIsByteNumber(numberValue[stringPosition]) || numberValue[stringPosition] == '-') {
 		return false
 	}
 
@@ -501,15 +501,18 @@ func parserIsNumberOnSignificandExpoentNotation(numberValue string) bool {
 		}
 	}
 
-	if stringPosition >= stringLength || !(numberValue[stringPosition] == 'E') {
+	if stringPosition >= stringLength || !(numberValue[stringPosition] == 'e') {
 		return false
 	}
 
 	stringPosition = stringPosition + 1
 
-	if stringPosition >= stringLength || !parserIsByteNumber(numberValue[stringPosition]) {
+	if stringPosition >= stringLength || !(parserIsByteNumber(numberValue[stringPosition]) ||
+		numberValue[stringPosition] == '-') {
 		return false
 	}
+
+	stringPosition = stringPosition + 1
 
 	for stringPosition < stringLength && parserIsByteNumber(numberValue[stringPosition]) {
 		stringPosition = stringPosition + 1

@@ -1,9 +1,11 @@
 package main
 
 import (
+	"os"
+
 	"github.com/felipeek/cirsim/internal"
 )
 
 func main() {
-	internal.ParserInit("C:\\Users\\Felipe\\Development\\go\\src\\github.com\\felipeek\\cirsim\\res\\example.spice")
+	internal.ParserInit(os.Args[1])
 }
