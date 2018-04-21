@@ -3,6 +3,7 @@ package internal
 import (
 	"fmt"
 	"math"
+	"os"
 	"strconv"
 )
 
@@ -37,7 +38,8 @@ func ParserInit(netListPath string) {
 	lexer := LexerInit(netListPath)
 	eof := false
 	nodesMap := make(map[string]int)
-	nodesQuantity := 0
+	nodesQuantity := 1
+	nodesMap["0"] = 0
 	var elementList *Element = nil
 
 	for !lexer.eof {
@@ -78,6 +80,8 @@ func ParserInit(netListPath string) {
 	}
 
 	parserPrintElementList(elementList)
+	fmt.Println()
+	parserPrintNodesMap(nodesMap)
 }
 
 func parserParseElement(lexer *Lexer, elementArray string,
@@ -125,7 +129,7 @@ func parserParseElement(lexer *Lexer, elementArray string,
 		// Get First Node
 		nodeToken = LexerNextToken(lexer)
 		if lexer.eof || nodeToken.TokenType != TokenStr {
-			fmt.Printf("Parser Error: Element format error at line %d\n", currentLine)
+			fmt.Fprintf(os.Stderr, "Parser Error: Element format error at line %d\n", currentLine)
 			return true, e
 		}
 
@@ -143,7 +147,7 @@ func parserParseElement(lexer *Lexer, elementArray string,
 		// Get Second Node
 		nodeToken = LexerNextToken(lexer)
 		if lexer.eof || nodeToken.TokenType != TokenStr {
-			fmt.Printf("Parser Error: Element format error at line %d\n", currentLine)
+			fmt.Fprintf(os.Stderr, "Parser Error: Element format error at line %d\n", currentLine)
 			return true, e
 		}
 
@@ -163,7 +167,7 @@ func parserParseElement(lexer *Lexer, elementArray string,
 		err, e.Value = parserParseNumber(nodeToken.TokenValue)
 
 		if err {
-			fmt.Printf("Parser Error: Number format error at line %d\n", currentLine)
+			fmt.Fprintf(os.Stderr, "Parser Error: Number format error at line %d\n", currentLine)
 			return true, e
 		}
 	}
@@ -175,7 +179,7 @@ func parserParseElement(lexer *Lexer, elementArray string,
 		// Get First Node
 		nodeToken := LexerNextToken(lexer)
 		if lexer.eof || nodeToken.TokenType != TokenStr {
-			fmt.Printf("Parser Error: Element format error at line %d\n", currentLine)
+			fmt.Fprintf(os.Stderr, "Parser Error: Element format error at line %d\n", currentLine)
 			return true, e
 		}
 
@@ -193,7 +197,7 @@ func parserParseElement(lexer *Lexer, elementArray string,
 		// Get Second Node
 		nodeToken = LexerNextToken(lexer)
 		if lexer.eof || nodeToken.TokenType != TokenStr {
-			fmt.Printf("Parser Error: Element format error at line %d\n", currentLine)
+			fmt.Fprintf(os.Stderr, "Parser Error: Element format error at line %d\n", currentLine)
 			return true, e
 		}
 
@@ -211,7 +215,7 @@ func parserParseElement(lexer *Lexer, elementArray string,
 		// Get Third Node
 		nodeToken = LexerNextToken(lexer)
 		if lexer.eof || nodeToken.TokenType != TokenStr {
-			fmt.Printf("Parser Error: Element format error at line %d\n", currentLine)
+			fmt.Fprintf(os.Stderr, "Parser Error: Element format error at line %d\n", currentLine)
 			return true, e
 		}
 
@@ -229,7 +233,7 @@ func parserParseElement(lexer *Lexer, elementArray string,
 		// Get Fourth Node
 		nodeToken = LexerNextToken(lexer)
 		if lexer.eof || nodeToken.TokenType != TokenStr {
-			fmt.Printf("Parser Error: Element format error at line %d\n", currentLine)
+			fmt.Fprintf(os.Stderr, "Parser Error: Element format error at line %d\n", currentLine)
 			return true, e
 		}
 
@@ -249,7 +253,7 @@ func parserParseElement(lexer *Lexer, elementArray string,
 		err, e.Value = parserParseNumber(nodeToken.TokenValue)
 
 		if err {
-			fmt.Printf("Parser Error: Number format error at line %d\n", currentLine)
+			fmt.Fprintf(os.Stderr, "Parser Error: Number format error at line %d\n", currentLine)
 			return true, e
 		}
 	}
@@ -260,7 +264,7 @@ func parserParseElement(lexer *Lexer, elementArray string,
 		// Get First Node
 		nodeToken := LexerNextToken(lexer)
 		if lexer.eof || nodeToken.TokenType != TokenStr {
-			fmt.Printf("Parser Error: Element format error at line %d\n", currentLine)
+			fmt.Fprintf(os.Stderr, "Parser Error: Element format error at line %d\n", currentLine)
 			return true, e
 		}
 
@@ -278,7 +282,7 @@ func parserParseElement(lexer *Lexer, elementArray string,
 		// Get Second Node
 		nodeToken = LexerNextToken(lexer)
 		if lexer.eof || nodeToken.TokenType != TokenStr {
-			fmt.Printf("Parser Error: Element format error at line %d\n", currentLine)
+			fmt.Fprintf(os.Stderr, "Parser Error: Element format error at line %d\n", currentLine)
 			return true, e
 		}
 
@@ -296,7 +300,7 @@ func parserParseElement(lexer *Lexer, elementArray string,
 		// Get Third Node
 		nodeToken = LexerNextToken(lexer)
 		if lexer.eof || nodeToken.TokenType != TokenStr {
-			fmt.Printf("Parser Error: Element format error at line %d\n", currentLine)
+			fmt.Fprintf(os.Stderr, "Parser Error: Element format error at line %d\n", currentLine)
 			return true, e
 		}
 
@@ -586,5 +590,13 @@ func parserPrintElement(e *Element) {
 		fmt.Printf("\tModel: %s\n", e.Model)
 	} else {
 		fmt.Printf("\tValue: %f\n", e.Value)
+	}
+}
+
+func parserPrintNodesMap(nodesMap map[string]int) {
+	fmt.Printf("Nodes Map:\n")
+
+	for k, v := range nodesMap {
+		fmt.Printf("\t%s -> %d\n", k, v)
 	}
 }
