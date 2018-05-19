@@ -29,18 +29,18 @@ type Element struct {
 	Label       string
 	Nodes       []int
 	Value       float64
-	Model       string
+	Extra       string
 	next        *Element
 }
 
 func ParserInit(netListPath string) {
 	var token Token
 	lexer := LexerInit(netListPath)
-	eof := false
 	nodesMap := make(map[string]int)
 	nodesQuantity := 1
 	nodesMap["0"] = 0
 	var elementList *Element = nil
+	opCommand := false
 
 	for !lexer.eof {
 		token = LexerNextToken(&lexer)
@@ -51,10 +51,8 @@ func ParserInit(netListPath string) {
 			}
 		case TokenCommand:
 			{
-				// This is not implemented yet.
-				// Ignore until a line break is received
-				for !eof && token.TokenType != TokenLineBreak {
-					token = LexerNextToken(&lexer)
+				if token.TokenValue == ".op" {
+					opCommand = true
 				}
 			}
 		case TokenStr:
@@ -79,9 +77,9 @@ func ParserInit(netListPath string) {
 		}
 	}
 
-	parserPrintElementList(elementList)
-	fmt.Println()
-	parserPrintNodesMap(nodesMap)
+	if opCommand {
+		dcSolve(elementList)
+	}
 }
 
 func parserParseElement(lexer *Lexer, elementArray string,
@@ -118,7 +116,7 @@ func parserParseElement(lexer *Lexer, elementArray string,
 		e.ElementType = ElementMOSFET
 	}
 
-	e.Label = elementArray[1:]
+	e.Label = elementArray
 	e.next = nil
 
 	if e.ElementType == ElementResistor || e.ElementType == ElementCapacitor ||
@@ -172,8 +170,7 @@ func parserParseElement(lexer *Lexer, elementArray string,
 		}
 	}
 
-	if e.ElementType == ElementVCCS || e.ElementType == ElementVCVS ||
-		e.ElementType == ElementCCVS || e.ElementType == ElementCCCS {
+	if e.ElementType == ElementVCCS || e.ElementType == ElementVCVS {
 		e.Nodes = make([]int, 4)
 
 		// Get First Node
@@ -258,6 +255,65 @@ func parserParseElement(lexer *Lexer, elementArray string,
 		}
 	}
 
+	if e.ElementType == ElementCCVS || e.ElementType == ElementCCCS {
+		e.Nodes = make([]int, 2)
+
+		// Get First Node
+		nodeToken := LexerNextToken(lexer)
+		if lexer.eof || nodeToken.TokenType != TokenStr {
+			fmt.Fprintf(os.Stderr, "Parser Error: Element format error at line %d\n", currentLine)
+			return true, e
+		}
+
+		nodeName := nodeToken.TokenValue
+		nodeNumber, exists := nodesMap[nodeName]
+
+		if exists {
+			e.Nodes[0] = nodeNumber
+		} else {
+			e.Nodes[0] = *nodesQuantity
+			nodesMap[nodeName] = *nodesQuantity
+			*nodesQuantity = *nodesQuantity + 1
+		}
+
+		// Get Second Node
+		nodeToken = LexerNextToken(lexer)
+		if lexer.eof || nodeToken.TokenType != TokenStr {
+			fmt.Fprintf(os.Stderr, "Parser Error: Element format error at line %d\n", currentLine)
+			return true, e
+		}
+
+		nodeName = nodeToken.TokenValue
+		nodeNumber, exists = nodesMap[nodeName]
+
+		if exists {
+			e.Nodes[1] = nodeNumber
+		} else {
+			e.Nodes[1] = *nodesQuantity
+			nodesMap[nodeName] = *nodesQuantity
+			*nodesQuantity = *nodesQuantity + 1
+		}
+
+		// Get Control Element
+		nodeToken = LexerNextToken(lexer)
+		if lexer.eof || nodeToken.TokenType != TokenStr {
+			fmt.Fprintf(os.Stderr, "Parser Error: Element format error at line %d\n", currentLine)
+			return true, e
+		}
+
+		nodeName = nodeToken.TokenValue
+		e.Extra = nodeName
+
+		// Get Value
+		nodeToken = LexerNextToken(lexer)
+		err, e.Value = parserParseNumber(nodeToken.TokenValue)
+
+		if err {
+			fmt.Fprintf(os.Stderr, "Parser Error: Number format error at line %d\n", currentLine)
+			return true, e
+		}
+	}
+
 	if e.ElementType == ElementBJT || e.ElementType == ElementMOSFET {
 		e.Nodes = make([]int, 3)
 
@@ -317,7 +373,7 @@ func parserParseElement(lexer *Lexer, elementArray string,
 
 		// Get Model
 		nodeToken = LexerNextToken(lexer)
-		e.Model = nodeToken.TokenValue
+		e.Extra = nodeToken.TokenValue
 	}
 
 	return false, e
@@ -586,8 +642,12 @@ func parserPrintElement(e *Element) {
 		fmt.Printf("\t\tNode %d: [%d]\n", i, n)
 	}
 
+	if e.ElementType == ElementCCCS || e.ElementType == ElementCCVS {
+		fmt.Printf("\tControl Element: %s\n", e.Extra)
+	}
+
 	if e.ElementType == ElementBJT || e.ElementType == ElementMOSFET {
-		fmt.Printf("\tModel: %s\n", e.Model)
+		fmt.Printf("\tModel: %s\n", e.Extra)
 	} else {
 		fmt.Printf("\tValue: %f\n", e.Value)
 	}
