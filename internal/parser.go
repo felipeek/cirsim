@@ -7,32 +7,6 @@ import (
 	"strconv"
 )
 
-type ElementType int
-
-const (
-	ElementResistor      ElementType = 0
-	ElementCapacitor     ElementType = 1
-	ElementInductor      ElementType = 2
-	ElementVoltageSource ElementType = 3
-	ElementCurrentSource ElementType = 4
-	ElementVCVS          ElementType = 5
-	ElementCCCS          ElementType = 6
-	ElementVCCS          ElementType = 7
-	ElementCCVS          ElementType = 8
-	ElementDiode         ElementType = 9
-	ElementBJT           ElementType = 10
-	ElementMOSFET        ElementType = 11
-)
-
-type Element struct {
-	ElementType ElementType
-	Label       string
-	Nodes       []int
-	Value       float64
-	Extra       string
-	next        *Element
-}
-
 func ParserInit(netListPath string) {
 	var token Token
 	lexer := LexerInit(netListPath)
@@ -68,7 +42,7 @@ func ParserInit(netListPath string) {
 					return
 				} else {
 					if elementList != nil {
-						parserAppendElement(elementList, e)
+						elementListAppend(elementList, e)
 					} else {
 						elementList = e
 					}
@@ -78,7 +52,7 @@ func ParserInit(netListPath string) {
 	}
 
 	if opCommand {
-		dcSolve(elementList)
+		mnaSolveLinear(elementList, nodesMap)
 	}
 }
 
@@ -117,7 +91,8 @@ func parserParseElement(lexer *Lexer, elementArray string,
 	}
 
 	e.Label = elementArray
-	e.next = nil
+	e.Next = nil
+	e.PreserveCurrent = false
 
 	if e.ElementType == ElementResistor || e.ElementType == ElementCapacitor ||
 		e.ElementType == ElementInductor || e.ElementType == ElementVoltageSource ||
@@ -582,74 +557,6 @@ func parserIsNumberOnSignificandExpoentNotation(numberValue string) bool {
 		return true
 	} else {
 		return false
-	}
-}
-
-func parserAppendElement(elementList *Element, e *Element) {
-	tmp := elementList
-
-	for tmp.next != nil {
-		tmp = tmp.next
-	}
-
-	tmp.next = e
-}
-
-func parserPrintElementList(elementList *Element) {
-	e := elementList
-	count := 1
-
-	for e != nil {
-		fmt.Printf("Element %d: \n", count)
-		parserPrintElement(e)
-		count = count + 1
-		e = e.next
-	}
-}
-
-func parserPrintElement(e *Element) {
-	switch e.ElementType {
-	case ElementBJT:
-		fmt.Printf("\tType: BJT\n")
-	case ElementCapacitor:
-		fmt.Printf("\tType: Capacitor\n")
-	case ElementCCCS:
-		fmt.Printf("\tType: CCCS\n")
-	case ElementCCVS:
-		fmt.Printf("\tType: CCVS\n")
-	case ElementCurrentSource:
-		fmt.Printf("\tType: Current Source\n")
-	case ElementDiode:
-		fmt.Printf("\tType: Diode\n")
-	case ElementInductor:
-		fmt.Printf("\tType: Inductor\n")
-	case ElementMOSFET:
-		fmt.Printf("\tType: MOSFET\n")
-	case ElementResistor:
-		fmt.Printf("\tType: Resistor\n")
-	case ElementVCCS:
-		fmt.Printf("\tType: VCCS\n")
-	case ElementVCVS:
-		fmt.Printf("\tType: VCVS\n")
-	case ElementVoltageSource:
-		fmt.Printf("\tType: Voltage Source\n")
-	}
-
-	fmt.Printf("\tLabel: %s\n", e.Label)
-
-	fmt.Printf("\tNodes:\n")
-	for i, n := range e.Nodes {
-		fmt.Printf("\t\tNode %d: [%d]\n", i, n)
-	}
-
-	if e.ElementType == ElementCCCS || e.ElementType == ElementCCVS {
-		fmt.Printf("\tControl Element: %s\n", e.Extra)
-	}
-
-	if e.ElementType == ElementBJT || e.ElementType == ElementMOSFET {
-		fmt.Printf("\tModel: %s\n", e.Extra)
-	} else {
-		fmt.Printf("\tValue: %f\n", e.Value)
 	}
 }
 
