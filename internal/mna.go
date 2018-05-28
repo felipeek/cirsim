@@ -59,6 +59,7 @@ func mnaSolveLinear(elementList *Element, nodesMap map[string]int) {
 	B := make([]float64, len(nodesMap)+len(currentNodes)-1)
 
 	mnaBuildMatrices(elementList, currentNodes, H, B)
+
 	LU, P := mnaLUFactorization(H, B)
 	Y := mnaProgressiveSubstitution(LU, B, P)
 	Xp := mnaRegressiveSubstitution(LU, Y, P)
@@ -69,7 +70,7 @@ func mnaSolveLinear(elementList *Element, nodesMap map[string]int) {
 		X[i] = Xp[P[i]]
 	}
 
-	mnaPrintMatrices(H, B, X)
+	mnaPrintMatrices(H, B, X, nodesMap, currentNodes)
 }
 
 func mnaBuildMatrices(elementList *Element, currentNodes map[string]int, H [][]float64, B []float64) {
@@ -113,18 +114,14 @@ func mnaBuildMatrices(elementList *Element, currentNodes map[string]int, H [][]f
 				controlElement := elementListFindByLabel(elementList, e.Extra)
 				if e.Nodes[0] != 0 && currentNodes[e.Label] != 0 {
 					H[e.Nodes[0]-1][currentNodes[e.Label]-1] += 1.0
+					H[currentNodes[e.Label]-1][e.Nodes[0]-1] += 1.0
 				}
 				if e.Nodes[1] != 0 && currentNodes[e.Label] != 0 {
 					H[e.Nodes[1]-1][currentNodes[e.Label]-1] -= 1.0
+					H[currentNodes[e.Label]-1][e.Nodes[1]-1] -= 1.0
 				}
-				if currentNodes[controlElement.Label] != 0 && e.Nodes[0] != 0 {
-					H[currentNodes[controlElement.Label]-1][e.Nodes[0]-1] += 1.0
-				}
-				if currentNodes[controlElement.Label] != 0 && e.Nodes[1] != 0 {
-					H[currentNodes[controlElement.Label]-1][e.Nodes[1]-1] -= 1.0
-				}
-				if currentNodes[controlElement.Label] != 0 {
-					H[currentNodes[controlElement.Label]-1][currentNodes[controlElement.Label]-1] -= e.Value
+				if currentNodes[e.Label] != 0 && currentNodes[controlElement.Label] != 0 {
+					H[currentNodes[e.Label]-1][currentNodes[controlElement.Label]-1] -= e.Value
 				}
 			}
 		case ElementCurrentSource:
@@ -187,8 +184,21 @@ func mnaBuildMatrices(elementList *Element, currentNodes map[string]int, H [][]f
 					H[e.Nodes[1]-1][e.Nodes[3]-1] += e.Value
 				}
 			} else {
-				fmt.Fprintf(os.Stderr, "VCCS G2 not implemented yet.")
-				os.Exit(1)
+				if e.Nodes[0] != 0 && currentNodes[e.Label]-1 != 0 {
+					H[e.Nodes[0]-1][currentNodes[e.Label]-1] += 1.0
+				}
+				if e.Nodes[1] != 0 && currentNodes[e.Label]-1 != 0 {
+					H[e.Nodes[1]-1][currentNodes[e.Label]-1] -= 1.0
+				}
+				if currentNodes[e.Label]-1 != 0 && e.Nodes[2] != 0 {
+					H[currentNodes[e.Label]-1][e.Nodes[2]] -= e.Value
+				}
+				if currentNodes[e.Label]-1 != 0 && e.Nodes[3] != 0 {
+					H[currentNodes[e.Label]-1][e.Nodes[3]] += e.Value
+				}
+				if currentNodes[e.Label]-1 != 0 {
+					H[currentNodes[e.Label]-1][currentNodes[e.Label]-1] += 1.0
+				}
 			}
 		case ElementVCVS:
 			if e.PreserveCurrent {
@@ -234,10 +244,10 @@ func mnaRegressiveSubstitution(LU [][]float64, Y []float64, P []int) []float64 {
 		X[P[k]] = Y[P[k]]
 
 		for j := k + 1; j < len(LU[0]); j++ {
-			X[P[k]] = X[P[k]] - LU[j][P[k]]*X[P[j]]
+			X[P[k]] = X[P[k]] - LU[P[k]][j]*X[P[j]]
 		}
 
-		X[P[k]] = X[P[k]] / LU[k][P[k]]
+		X[P[k]] = X[P[k]] / LU[P[k]][k]
 	}
 
 	return X
@@ -254,16 +264,16 @@ func mnaProgressiveSubstitution(LU [][]float64, B []float64, P []int) []float64 
 	}
 
 	for i := range L {
-		L[i][P[i]] = 1.0
+		L[P[i]][i] = 1.0
 	}
 
 	for k := range L[0] {
 		Y[P[k]] = B[P[k]]
 		for j := 0; j < k; j++ {
-			Y[P[k]] = Y[P[k]] - L[j][P[k]]*Y[P[j]]
+			Y[P[k]] = Y[P[k]] - L[P[k]][j]*Y[P[j]]
 		}
 
-		Y[P[k]] = Y[P[k]] / L[k][P[k]]
+		Y[P[k]] = Y[P[k]] / L[P[k]][k]
 	}
 
 	return Y
@@ -287,7 +297,7 @@ func mnaLUFactorization(H [][]float64, B []float64) ([][]float64, []int) {
 		kMax := k
 
 		for l := k + 1; l < len(LU[0]); l++ {
-			if math.Abs(LU[k][P[l]]) > math.Abs(LU[k][P[k]]) {
+			if math.Abs(LU[P[l]][k]) > math.Abs(LU[P[k]][k]) {
 				kMax = l
 			}
 		}
@@ -297,28 +307,40 @@ func mnaLUFactorization(H [][]float64, B []float64) ([][]float64, []int) {
 		P[kMax] = aux
 
 		for i := k + 1; i < len(LU[0]); i++ {
-			LU[k][P[i]] = LU[k][P[i]] / LU[k][P[k]]
+			LU[P[i]][k] = LU[P[i]][k] / LU[P[k]][k]
 
 			for j := k + 1; j < len(LU); j++ {
-				LU[j][P[i]] = LU[j][P[i]] - LU[k][P[i]]*LU[j][P[k]]
+				LU[P[i]][j] = LU[P[i]][j] - LU[P[i]][k]*LU[P[k]][j]
 			}
 		}
 	}
 	return LU, P
 }
 
-func mnaPrintMatrices(H [][]float64, B []float64, X []float64) {
+func mnaPrintMatrices(H [][]float64, B []float64, X []float64, nodesMap map[string]int, currentNodes map[string]int) {
+	fmt.Printf("Matrix H (Row-Major):\n\n")
 	for i, l := range H {
 		for j, v := range l {
-			fmt.Printf("H(%d,%d) = %f\n", i, j, v)
+			fmt.Printf("\tH(%d,%d) = %.3f\n", i, j, v)
 		}
 	}
 
+	fmt.Printf("\nVector s:\n\n")
 	for i, v := range B {
-		fmt.Printf("B(%d) = %f\n", i, v)
+		fmt.Printf("\ts(%d) = %.3f\n", i, v)
 	}
 
-	for i, v := range X {
-		fmt.Printf("X(%d) = %f\n", i, v)
+	fmt.Printf("\nResults:\n\n")
+	fmt.Printf("\tVoltages:\n")
+	for k, v := range nodesMap {
+		if v != 0 {
+			fmt.Printf("\tV(%s) = %.3f V\n", k, X[v-1])
+		}
+	}
+	fmt.Printf("\n\tCurrents:\n")
+	for k, v := range currentNodes {
+		if v != 0 {
+			fmt.Printf("\tI(%s) = %.3f A\n", k, X[v-1])
+		}
 	}
 }

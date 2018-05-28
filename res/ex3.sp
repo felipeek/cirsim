@@ -1,9 +1,13 @@
-* Testcase 2
-Ve1 1 0 40000m
-Re2 1 2 0.01k
-Ie3 3 2 0.000005Meg
-Re4 3 0 10000000u
-Re5 2 4 5
-Re6 4 0 10
-Ge7 0 4 2 4 2
+* Testcase 2-3 (1-7)
 
+H_Hesq	b	0	R_Rdi_4	6250m
+R_Resq	a	0	20
+I_Icima	a	b	5
+R_Rmeio	a	c	10
+R_Rdi_1	c	b	40
+R_Rdi_2	c	b	60
+V_Vdir	c	d	10
+R_Rdi_3	d	0	20
+R_Rdi_4 c	0	20	 
+
+.op

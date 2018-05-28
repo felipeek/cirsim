@@ -1,9 +1,13 @@
-* Testcase 4
-Ve1 1 0 4E1
-Re2 1 2 1E1
-Ie3 3 2 50E-1
-Re4 3 0 1E1
-Re5 2 4 500E-2
-Re6 4 0 0.1E2
-Ge7 0 4 2 4 20E-1
+* Testcase 2-4
 
+Rww no1   0  5
+Rnw no1 no2 10
+Rnn no2 no3  3
+Inn no2 no4  3
+Vss no3   0 18
+Ins no4 no3  2
+Vne no4 no5  9
+Ene no5 no6 no1 no2 3
+Rse no6 0    9  
+
+.op

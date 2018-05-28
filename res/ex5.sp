@@ -1,13 +1,14 @@
-* Testcase 5
+* Testcase 2-5
 
-* Elemento   n+       n-       nx+      nx-   valor
-R_Rleft      node_A        0                      5
-R_Rtopleft   node_A   node_B                     10
-R_Rmiddle    node_B   node_C                      3
-I_Itop       node_B   node_D                      3
-I_Iright     node_D   node_C                      2
-V_Vbottom    node_C        0                     18
-V_Vright     node_D   node_E                      9
-E_Eright     node_E   node_F   node_A   node_B    3
-R_Rright     node_F        0                      9
+Vesq  A   0  100
+Resq1 A   vx  10
+Resq2 vx  0   20
+Resq3 vx  B    10
+Gesq  B   0   vy  0  10m
 
+Rdir1 C   0   10
+Edir  vy  C   vx  0 30
+Rdir2 vy  0   10
+Rdir3 vy  0   10
+
+.op
