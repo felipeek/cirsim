@@ -59,9 +59,16 @@ func mnaSolveLinear(elementList *Element, nodesMap map[string]int) {
 	B := make([]float64, len(nodesMap)+len(currentNodes)-1)
 
 	mnaBuildMatrices(elementList, currentNodes, H, B)
-	X := mnaLUFactorization(H, B)
+	LU, P := mnaLUFactorization(H, B)
+	Y := mnaProgressiveSubstitution(LU, B, P)
+	Xp := mnaRegressiveSubstitution(LU, Y, P)
 
-	//fmt.Println("X: %+v\n", X)
+	X := make([]float64, len(Xp))
+
+	for i := range X {
+		X[i] = Xp[P[i]]
+	}
+
 	mnaPrintMatrices(H, B, X)
 }
 
@@ -220,66 +227,84 @@ func mnaBuildMatrices(elementList *Element, currentNodes map[string]int, H [][]f
 	}
 }
 
-func mnaLUFactorization(H [][]float64, B []float64) []float64 {
-	LU := make([][]float64, len(H))
+func mnaRegressiveSubstitution(LU [][]float64, Y []float64, P []int) []float64 {
+	X := make([]float64, len(Y))
 
-	for i := 0; i < len(H); i++ {
-		LU[i] = make([]float64, len(H))
+	for k := len(LU[0]) - 1; k >= 0; k-- {
+		X[P[k]] = Y[P[k]]
 
-		for j := 0; j < len(H); j++ {
-			LU[i][j] = H[i][j]
-		}
-	}
-	for k := 0; k < len(H); k++ {
-
-		// partial pivoting
-		absValue := math.Abs(LU[k][k])
-		absIndex := k
-		for i := k + 1; i < len(H); i++ {
-			if math.Abs(LU[k][i]) > absValue {
-				absIndex = i
-				absValue = math.Abs(LU[k][i])
-			}
+		for j := k + 1; j < len(LU[0]); j++ {
+			X[P[k]] = X[P[k]] - LU[j][P[k]]*X[P[j]]
 		}
 
-		//switch rows
-		tmp := LU[k]
-		LU[k] = LU[absIndex]
-		LU[absIndex] = tmp
-
-		tmp2 := B[k]
-		B[k] = B[absIndex]
-		B[absIndex] = tmp2
-
-		for i := k + 1; i < len(H); i++ {
-			LU[i][k] = H[i][k] / H[k][k]
-			for j := k + 1; j < len(H); j++ {
-				LU[i][j] = H[i][j] - H[i][k]*H[k][j]
-			}
-		}
-	}
-
-	//printMatrix(LU)
-
-	Y := make([]float64, len(B))
-	for k := 0; k < len(H); k++ {
-		Y[k] = B[k]
-		for j := 0; j < k-1; j++ {
-			Y[k] = Y[k] - LU[k][j]*Y[j]
-		}
-		Y[k] = Y[k] / LU[k][k]
-	}
-
-	X := make([]float64, len(B))
-	for k := len(H) - 1; k >= 0; k-- {
-		X[k] = B[k]
-		for j := k + 1; j < len(H); j++ {
-			X[k] = X[k] - LU[k][j]*X[j]
-		}
-		X[k] = X[k] / LU[k][k]
+		X[P[k]] = X[P[k]] / LU[k][P[k]]
 	}
 
 	return X
+}
+
+func mnaProgressiveSubstitution(LU [][]float64, B []float64, P []int) []float64 {
+	Y := make([]float64, len(B))
+	L := make([][]float64, len(LU))
+	for i := range LU {
+		L[i] = make([]float64, len(LU[i]))
+		for j := range LU[i] {
+			L[i][j] = LU[i][j]
+		}
+	}
+
+	for i := range L {
+		L[i][P[i]] = 1.0
+	}
+
+	for k := range L[0] {
+		Y[P[k]] = B[P[k]]
+		for j := 0; j < k; j++ {
+			Y[P[k]] = Y[P[k]] - L[j][P[k]]*Y[P[j]]
+		}
+
+		Y[P[k]] = Y[P[k]] / L[k][P[k]]
+	}
+
+	return Y
+}
+
+func mnaLUFactorization(H [][]float64, B []float64) ([][]float64, []int) {
+	P := make([]int, len(H[0])) // permutation vector
+	for i := range P {
+		P[i] = i
+	}
+
+	LU := make([][]float64, len(H))
+	for i := range H {
+		LU[i] = make([]float64, len(H[i]))
+		for j := range H[i] {
+			LU[i][j] = H[i][j]
+		}
+	}
+
+	for k := range P {
+		kMax := k
+
+		for l := k + 1; l < len(LU[0]); l++ {
+			if math.Abs(LU[k][P[l]]) > math.Abs(LU[k][P[k]]) {
+				kMax = l
+			}
+		}
+
+		aux := P[k]
+		P[k] = P[kMax]
+		P[kMax] = aux
+
+		for i := k + 1; i < len(LU[0]); i++ {
+			LU[k][P[i]] = LU[k][P[i]] / LU[k][P[k]]
+
+			for j := k + 1; j < len(LU); j++ {
+				LU[j][P[i]] = LU[j][P[i]] - LU[k][P[i]]*LU[j][P[k]]
+			}
+		}
+	}
+	return LU, P
 }
 
 func mnaPrintMatrices(H [][]float64, B []float64, X []float64) {
@@ -293,20 +318,7 @@ func mnaPrintMatrices(H [][]float64, B []float64, X []float64) {
 		fmt.Printf("B(%d) = %f\n", i, v)
 	}
 
-	//for i, v := range X {
-	//	fmt.Printf("X(%d) = %f\n", i, v)
-	//}
-}
-
-func printMatrix(matrix [][]float64) {
-	for _, l := range matrix {
-		fmt.Printf("[")
-		for j, k := range l {
-			fmt.Printf("%.3f", k)
-			if j != len(l)-1 {
-				fmt.Printf(",")
-			}
-		}
-		fmt.Printf("]\n")
+	for i, v := range X {
+		fmt.Printf("X(%d) = %f\n", i, v)
 	}
 }
