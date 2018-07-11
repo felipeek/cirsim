@@ -7,13 +7,6 @@ import (
 )
 
 func mnaSolveLinear(elementList *Element, nodesMap map[string]int) {
-	//elementListPrint(elementList)
-
-	//H1 := [][]float64{{1, 0, 2}, {2, 1, 0}, {2, 1, 1}}
-	//B1 := []float64{1, 2, 1}
-
-	//mnaLUFactorization(H1, B1)
-
 	// identify groups
 	currentElement := elementList
 
@@ -24,7 +17,7 @@ func mnaSolveLinear(elementList *Element, nodesMap map[string]int) {
 		}
 
 		if currentElement.ElementType == ElementCCVS || currentElement.ElementType == ElementCCCS {
-			e := elementListFindByLabel(elementList, currentElement.Extra)
+			e := elementListFindByLabel(elementList, currentElement.Extra.(string))
 			if e == nil {
 				fmt.Fprintf(os.Stderr, "MNA Error: VCCS or CCCS has Control Element with invalid label\n")
 				os.Exit(1)
@@ -87,7 +80,7 @@ func mnaBuildMatrices(elementList *Element, currentNodes map[string]int, H [][]f
 			os.Exit(1)
 		case ElementCCCS:
 			if !e.PreserveCurrent {
-				controlElement := elementListFindByLabel(elementList, e.Extra)
+				controlElement := elementListFindByLabel(elementList, e.Extra.(string))
 				if e.Nodes[0] != 0 && currentNodes[controlElement.Label] != 0 {
 					H[e.Nodes[0]-1][currentNodes[controlElement.Label]-1] += e.Value
 				}
@@ -95,7 +88,7 @@ func mnaBuildMatrices(elementList *Element, currentNodes map[string]int, H [][]f
 					H[e.Nodes[1]-1][currentNodes[controlElement.Label]-1] -= e.Value
 				}
 			} else {
-				controlElement := elementListFindByLabel(elementList, e.Extra)
+				controlElement := elementListFindByLabel(elementList, e.Extra.(string))
 				if e.Nodes[0] != 0 && currentNodes[e.Label] != 0 {
 					H[e.Nodes[0]-1][currentNodes[e.Label]-1] += 1.0
 				}
@@ -111,7 +104,7 @@ func mnaBuildMatrices(elementList *Element, currentNodes map[string]int, H [][]f
 			}
 		case ElementCCVS:
 			if e.PreserveCurrent {
-				controlElement := elementListFindByLabel(elementList, e.Extra)
+				controlElement := elementListFindByLabel(elementList, e.Extra.(string))
 				if e.Nodes[0] != 0 && currentNodes[e.Label] != 0 {
 					H[e.Nodes[0]-1][currentNodes[e.Label]-1] += 1.0
 					H[currentNodes[e.Label]-1][e.Nodes[0]-1] += 1.0
@@ -343,4 +336,8 @@ func mnaPrintMatrices(H [][]float64, B []float64, X []float64, nodesMap map[stri
 			fmt.Printf("\tI(%s) = %.3f A\n", k, X[v-1])
 		}
 	}
+}
+
+func mnaSolveDynamic(elementList *Element, nodesMap map[string]int, tStep float64, tStop float64) {
+	elementListPrint(elementList)
 }

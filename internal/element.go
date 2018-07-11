@@ -24,8 +24,8 @@ type Element struct {
 	Label           string
 	Nodes           []int
 	Value           float64
-	Extra           string // model or control element (CCCS CCVS)
-	PreserveCurrent bool   // used by MNA algorithm
+	Extra           interface{} // model or control element (CCCS CCVS) [string] | IC (capacitor, inductor) [float64]
+	PreserveCurrent bool        // used by MNA algorithm
 	Next            *Element
 }
 

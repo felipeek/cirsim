@@ -15,6 +15,9 @@ func ParserInit(netListPath string) {
 	nodesMap["0"] = 0
 	var elementList *Element = nil
 	opCommand := false
+	tranCommand := false
+	tStep := 0.0
+	tStop := 0.0
 
 	for !lexer.eof {
 		token = LexerNextToken(&lexer)
@@ -27,6 +30,27 @@ func ParserInit(netListPath string) {
 			{
 				if token.TokenValue == ".op" {
 					opCommand = true
+				} else if token.TokenValue == ".tran" {
+					tranCommand = true
+					// Get Value
+					nodeToken := LexerNextToken(&lexer)
+					err, step := parserParseNumber(nodeToken.TokenValue)
+
+					if err {
+						fmt.Fprintf(os.Stderr, "Parser Error: Number format error at line %d\n", lexer.lineNumber)
+						return
+					}
+
+					nodeToken = LexerNextToken(&lexer)
+					err, stop := parserParseNumber(nodeToken.TokenValue)
+
+					if err {
+						fmt.Fprintf(os.Stderr, "Parser Error: Number format error at line %d\n", lexer.lineNumber)
+						return
+					}
+
+					tStep = step
+					tStop = stop
 				}
 			}
 		case TokenStr:
@@ -53,6 +77,9 @@ func ParserInit(netListPath string) {
 
 	if opCommand {
 		mnaSolveLinear(elementList, nodesMap)
+	}
+	if tranCommand {
+		mnaSolveDynamic(elementList, nodesMap, tStep, tStop)
 	}
 }
 
@@ -142,6 +169,20 @@ func parserParseElement(lexer *Lexer, elementArray string,
 		if err {
 			fmt.Fprintf(os.Stderr, "Parser Error: Number format error at line %d\n", currentLine)
 			return true, e
+		}
+
+		// If the element is a capactor or an inductor, there is an optional parameter
+		if e.ElementType == ElementCapacitor ||
+			e.ElementType == ElementInductor {
+			// Get Value
+			nodeToken = LexerNextToken(lexer)
+			if nodeToken.TokenType != TokenLineBreak {
+				err, e.Extra = parserParseIC(nodeToken.TokenValue)
+				if err {
+					fmt.Fprintf(os.Stderr, "Parser Error: IC format error at line %d\n", currentLine)
+					return true, e
+				}
+			}
 		}
 	}
 
@@ -566,4 +607,12 @@ func parserPrintNodesMap(nodesMap map[string]int) {
 	for k, v := range nodesMap {
 		fmt.Printf("\t%s -> %d\n", k, v)
 	}
+}
+
+func parserParseIC(icString string) (bool, float64) {
+	if icString[:3] != "ic=" {
+		return true, 0.0
+	}
+
+	return parserParseNumber(icString[3:])
 }
