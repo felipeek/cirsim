@@ -13,16 +13,17 @@ func retrieveSourceValue(e Element, time float64) float64 {
 
 	switch v := e.Extra.(type) {
 	case sinDescriptor:
-		return v.v0 + v.va*math.Sin(2.0*math.Pi*v.freq+v.td)
+		c := 2.0*math.Pi*v.freq*time + v.td
+		s := math.Sin(c)
+		return v.v0 + v.va*s
 	case []pwlDescriptor:
 		timeBeforeIndex := 0
 		for ; timeBeforeIndex < len(v); timeBeforeIndex++ {
 			if v[timeBeforeIndex].t > time {
-				timeBeforeIndex -= 1
 				break
 			}
 		}
-
+		timeBeforeIndex--
 		desc := v[timeBeforeIndex]
 		if timeBeforeIndex == len(v)-1 {
 			return desc.x
@@ -375,4 +376,19 @@ func mnaPrintMatrices(H [][]float64, B []float64, X []float64, nodesMap map[stri
 
 func mnaSolveDynamic(elementList *Element, nodesMap map[string]int, tStep float64, tStop float64) {
 	elementListPrint(elementList)
+
+	e := elementList
+	for e != nil {
+		if e.ElementType == ElementVoltageSource || e.ElementType == ElementCurrentSource {
+			for t := 0.0; t <= tStop; t += tStep {
+				v := retrieveSourceValue(*e, t)
+				graphCollect(*e, t, v)
+			}
+			err := graphRender(*e)
+			if err != nil {
+				panic(err)
+			}
+		}
+		e = e.Next
+	}
 }
