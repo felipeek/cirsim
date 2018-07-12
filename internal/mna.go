@@ -6,6 +6,39 @@ import (
 	"os"
 )
 
+func retrieveSourceValue(e Element, time float64) float64 {
+	if e.ElementType != ElementCurrentSource && e.ElementType != ElementVoltageSource {
+		panic("retrieveSourceValue must receive source element")
+	}
+
+	switch v := e.Extra.(type) {
+	case sinDescriptor:
+		return v.v0 + v.va*math.Sin(2.0*math.Pi*v.freq+v.td)
+	case []pwlDescriptor:
+		timeBeforeIndex := 0
+		for ; timeBeforeIndex < len(v); timeBeforeIndex++ {
+			if v[timeBeforeIndex].t > time {
+				timeBeforeIndex -= 1
+				break
+			}
+		}
+
+		desc := v[timeBeforeIndex]
+		if timeBeforeIndex == len(v)-1 {
+			return desc.x
+		} else {
+			t0 := desc.t
+			x0 := desc.x
+			t1 := v[timeBeforeIndex+1].t
+			x1 := v[timeBeforeIndex+1].x
+
+			return x0 + (x1-x0)*((time-t0)/(t1-t0))
+		}
+	default:
+		return e.Value
+	}
+}
+
 func mnaSolveLinear(elementList *Element, nodesMap map[string]int) {
 	// identify groups
 	currentElement := elementList
@@ -118,12 +151,13 @@ func mnaBuildMatrices(elementList *Element, currentNodes map[string]int, H [][]f
 				}
 			}
 		case ElementCurrentSource:
+			cValue := retrieveSourceValue(*e, 0)
 			if !e.PreserveCurrent {
 				if e.Nodes[0] != 0 {
-					B[e.Nodes[0]-1] -= e.Value
+					B[e.Nodes[0]-1] -= cValue
 				}
 				if e.Nodes[1] != 0 {
-					B[e.Nodes[1]-1] += e.Value
+					B[e.Nodes[1]-1] += cValue
 				}
 			} else {
 				if e.Nodes[0] != 0 && currentNodes[e.Label] != 0 {
@@ -134,7 +168,7 @@ func mnaBuildMatrices(elementList *Element, currentNodes map[string]int, H [][]f
 				}
 				if currentNodes[e.Label] != 0 {
 					H[currentNodes[e.Label]-1][currentNodes[e.Label]-1] += 1.0
-					B[currentNodes[e.Label]-1] += e.Value
+					B[currentNodes[e.Label]-1] += cValue
 				}
 			}
 		case ElementResistor:
@@ -211,6 +245,7 @@ func mnaBuildMatrices(elementList *Element, currentNodes map[string]int, H [][]f
 				}
 			}
 		case ElementVoltageSource:
+			vValue := retrieveSourceValue(*e, 0)
 			if e.PreserveCurrent {
 				if e.Nodes[0] != 0 && currentNodes[e.Label] != 0 {
 					H[e.Nodes[0]-1][currentNodes[e.Label]-1] += 1.0
@@ -221,7 +256,7 @@ func mnaBuildMatrices(elementList *Element, currentNodes map[string]int, H [][]f
 					H[currentNodes[e.Label]-1][e.Nodes[1]-1] -= 1.0
 				}
 				if currentNodes[e.Label] != 0 {
-					B[currentNodes[e.Label]-1] += e.Value
+					B[currentNodes[e.Label]-1] += vValue
 				}
 			}
 		}
