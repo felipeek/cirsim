@@ -122,8 +122,7 @@ func parserParseElement(lexer *Lexer, elementArray string,
 	e.PreserveCurrent = false
 
 	if e.ElementType == ElementResistor || e.ElementType == ElementCapacitor ||
-		e.ElementType == ElementInductor || e.ElementType == ElementVoltageSource ||
-		e.ElementType == ElementCurrentSource || e.ElementType == ElementDiode {
+		e.ElementType == ElementInductor || e.ElementType == ElementDiode {
 		e.Nodes = make([]int, 2)
 
 		// Get First Node
@@ -182,6 +181,8 @@ func parserParseElement(lexer *Lexer, elementArray string,
 					fmt.Fprintf(os.Stderr, "Parser Error: IC format error at line %d\n", currentLine)
 					return true, e
 				}
+			} else {
+				e.Extra = 0.0
 			}
 		}
 	}
@@ -268,6 +269,239 @@ func parserParseElement(lexer *Lexer, elementArray string,
 		if err {
 			fmt.Fprintf(os.Stderr, "Parser Error: Number format error at line %d\n", currentLine)
 			return true, e
+		}
+	}
+
+	if e.ElementType == ElementVoltageSource ||
+		e.ElementType == ElementCurrentSource {
+		e.Nodes = make([]int, 2)
+
+		// Get First Node
+		nodeToken = LexerNextToken(lexer)
+		if lexer.eof || nodeToken.TokenType != TokenStr {
+			fmt.Fprintf(os.Stderr, "Parser Error: Element format error at line %d\n", currentLine)
+			return true, e
+		}
+
+		nodeName := nodeToken.TokenValue
+		nodeNumber, exists := nodesMap[nodeName]
+
+		if exists {
+			e.Nodes[0] = nodeNumber
+		} else {
+			e.Nodes[0] = *nodesQuantity
+			nodesMap[nodeName] = *nodesQuantity
+			*nodesQuantity = *nodesQuantity + 1
+		}
+
+		// Get Second Node
+		nodeToken = LexerNextToken(lexer)
+		if lexer.eof || nodeToken.TokenType != TokenStr {
+			fmt.Fprintf(os.Stderr, "Parser Error: Element format error at line %d\n", currentLine)
+			return true, e
+		}
+
+		nodeName = nodeToken.TokenValue
+		nodeNumber, exists = nodesMap[nodeName]
+
+		if exists {
+			e.Nodes[1] = nodeNumber
+		} else {
+			e.Nodes[1] = *nodesQuantity
+			nodesMap[nodeName] = *nodesQuantity
+			*nodesQuantity = *nodesQuantity + 1
+		}
+
+		// Get Value
+		nodeToken = LexerNextToken(lexer)
+
+		switch nodeToken.TokenValue[0] {
+		case 's':
+			desc := sinDescriptor{}
+			if nodeToken.TokenValue[:3] != "sin" {
+				fmt.Fprintf(os.Stderr, "Parser Error: Element format error at line %d\n", currentLine)
+				return true, e
+			}
+			if len(nodeToken.TokenValue) > 3 {
+				if nodeToken.TokenValue[3] != '(' {
+					fmt.Fprintf(os.Stderr, "Parser Error: Element format error at line %d\n", currentLine)
+					return true, e
+				}
+				if len(nodeToken.TokenValue) > 4 {
+					err, desc.v0 = parserParseNumber(nodeToken.TokenValue[4:])
+					if err {
+						fmt.Fprintf(os.Stderr, "Parser Error: Number format error at line %d\n", currentLine)
+						return true, e
+					}
+				} else {
+					nodeToken = LexerNextToken(lexer)
+					err, desc.v0 = parserParseNumber(nodeToken.TokenValue)
+					if err {
+						fmt.Fprintf(os.Stderr, "Parser Error: Number format error at line %d\n", currentLine)
+						return true, e
+					}
+				}
+			} else {
+				nodeToken = LexerNextToken(lexer)
+				if nodeToken.TokenValue[0] != '(' {
+					fmt.Fprintf(os.Stderr, "Parser Error: Element format error at line %d\n", currentLine)
+					return true, e
+				}
+				if len(nodeToken.TokenValue) > 1 {
+					err, desc.v0 = parserParseNumber(nodeToken.TokenValue[1:])
+					if err {
+						fmt.Fprintf(os.Stderr, "Parser Error: Number format error at line %d\n", currentLine)
+						return true, e
+					}
+				} else {
+					nodeToken = LexerNextToken(lexer)
+					err, desc.v0 = parserParseNumber(nodeToken.TokenValue)
+					if err {
+						fmt.Fprintf(os.Stderr, "Parser Error: Number format error at line %d\n", currentLine)
+						return true, e
+					}
+				}
+			}
+
+			nodeToken = LexerNextToken(lexer)
+			err, desc.va = parserParseNumber(nodeToken.TokenValue)
+			if err {
+				fmt.Fprintf(os.Stderr, "Parser Error: Number format error at line %d\n", currentLine)
+				return true, e
+			}
+
+			nodeToken = LexerNextToken(lexer)
+			err, desc.freq = parserParseNumber(nodeToken.TokenValue)
+			if err {
+				fmt.Fprintf(os.Stderr, "Parser Error: Number format error at line %d\n", currentLine)
+				return true, e
+			}
+
+			nodeToken = LexerNextToken(lexer)
+			if nodeToken.TokenValue[len(nodeToken.TokenValue)-1] != ')' {
+				err, desc.td = parserParseNumber(nodeToken.TokenValue)
+				if err {
+					fmt.Fprintf(os.Stderr, "Parser Error: Number format error at line %d\n", currentLine)
+					return true, e
+				}
+
+				nodeToken = LexerNextToken(lexer)
+				if nodeToken.TokenValue != ")" {
+					fmt.Fprintf(os.Stderr, "Parser Error: Element format error at line %d\n", currentLine)
+					return true, e
+				}
+			} else {
+				err, desc.td = parserParseNumber(nodeToken.TokenValue[:len(nodeToken.TokenValue)-1])
+				if err {
+					fmt.Fprintf(os.Stderr, "Parser Error: Number format error at line %d\n", currentLine)
+					return true, e
+				}
+			}
+			e.Extra = desc
+		case 'p':
+			ar := make([]pwlDescriptor, 0)
+			desc := pwlDescriptor{}
+			if nodeToken.TokenValue[:3] != "pwl" {
+				fmt.Fprintf(os.Stderr, "Parser Error: Element format error at line %d\n", currentLine)
+				return true, e
+			}
+			if len(nodeToken.TokenValue) > 3 {
+				if nodeToken.TokenValue[3] != '(' {
+					fmt.Fprintf(os.Stderr, "Parser Error: Element format error at line %d\n", currentLine)
+					return true, e
+				}
+				if len(nodeToken.TokenValue) > 4 {
+					err, desc.t = parserParseNumber(nodeToken.TokenValue[4:])
+					if err {
+						fmt.Fprintf(os.Stderr, "Parser Error: Number format error at line %d\n", currentLine)
+						return true, e
+					}
+				} else {
+					nodeToken = LexerNextToken(lexer)
+					err, desc.t = parserParseNumber(nodeToken.TokenValue)
+					if err {
+						fmt.Fprintf(os.Stderr, "Parser Error: Number format error at line %d\n", currentLine)
+						return true, e
+					}
+				}
+			} else {
+				nodeToken = LexerNextToken(lexer)
+				if nodeToken.TokenValue[0] != '(' {
+					fmt.Fprintf(os.Stderr, "Parser Error: Element format error at line %d\n", currentLine)
+					return true, e
+				}
+				if len(nodeToken.TokenValue) > 1 {
+					err, desc.t = parserParseNumber(nodeToken.TokenValue[1:])
+					if err {
+						fmt.Fprintf(os.Stderr, "Parser Error: Number format error at line %d\n", currentLine)
+						return true, e
+					}
+				} else {
+					nodeToken = LexerNextToken(lexer)
+					err, desc.t = parserParseNumber(nodeToken.TokenValue)
+					if err {
+						fmt.Fprintf(os.Stderr, "Parser Error: Number format error at line %d\n", currentLine)
+						return true, e
+					}
+				}
+			}
+
+			nodeToken = LexerNextToken(lexer)
+			if nodeToken.TokenValue[len(nodeToken.TokenValue)-1] != ')' {
+				err, desc.x = parserParseNumber(nodeToken.TokenValue)
+				if err {
+					fmt.Fprintf(os.Stderr, "Parser Error: Number format error at line %d\n", currentLine)
+					return true, e
+				}
+				ar = append(ar, desc)
+
+				for {
+					nodeToken = LexerNextToken(lexer)
+					if nodeToken.TokenValue == ")" {
+						break
+					}
+					err, desc.t = parserParseNumber(nodeToken.TokenValue)
+					if err {
+						fmt.Fprintf(os.Stderr, "Parser Error: Number format error at line %d\n", currentLine)
+						return true, e
+					}
+
+					nodeToken = LexerNextToken(lexer)
+					if nodeToken.TokenValue[len(nodeToken.TokenValue)-1] != ')' {
+						err, desc.x = parserParseNumber(nodeToken.TokenValue)
+						if err {
+							fmt.Fprintf(os.Stderr, "Parser Error: Number format error at line %d\n", currentLine)
+							return true, e
+						}
+						ar = append(ar, desc)
+					} else {
+						err, desc.x = parserParseNumber(nodeToken.TokenValue[:len(nodeToken.TokenValue)-1])
+						if err {
+							fmt.Fprintf(os.Stderr, "Parser Error: Number format error at line %d\n", currentLine)
+							return true, e
+						}
+						ar = append(ar, desc)
+						break
+					}
+				}
+			} else {
+				err, desc.x = parserParseNumber(nodeToken.TokenValue[:len(nodeToken.TokenValue)-1])
+				if err {
+					fmt.Fprintf(os.Stderr, "Parser Error: Number format error at line %d\n", currentLine)
+					return true, e
+				}
+				ar = append(ar, desc)
+			}
+
+			e.Extra = ar
+		default:
+			e.Extra = nil
+			err, e.Value = parserParseNumber(nodeToken.TokenValue)
+
+			if err {
+				fmt.Fprintf(os.Stderr, "Parser Error: Number format error at line %d\n", currentLine)
+				return true, e
+			}
 		}
 	}
 

@@ -29,6 +29,18 @@ type Element struct {
 	Next            *Element
 }
 
+type sinDescriptor struct {
+	v0   float64
+	va   float64
+	freq float64
+	td   float64
+}
+
+type pwlDescriptor struct {
+	t float64
+	x float64
+}
+
 func elementListAppend(elementList *Element, e *Element) {
 	tmp := elementList
 
@@ -100,12 +112,18 @@ func elementPrint(e *Element) {
 	}
 
 	if e.ElementType == ElementCCCS || e.ElementType == ElementCCVS {
-		fmt.Printf("\tControl Element: %s\n", e.Extra)
+		fmt.Printf("\tControl Element: %s\n", e.Extra.(string))
 	}
 
 	if e.ElementType == ElementBJT || e.ElementType == ElementMOSFET {
-		fmt.Printf("\tModel: %s\n", e.Extra)
+		fmt.Printf("\tModel: %s\n", e.Extra.(string))
 	} else {
 		fmt.Printf("\tValue: %f\n", e.Value)
+	}
+
+	if e.ElementType == ElementCapacitor || e.ElementType == ElementInductor {
+		fmt.Printf("\tIC: %f\n", e.Extra.(float64))
+	} else if e.ElementType == ElementVoltageSource || e.ElementType == ElementCurrentSource {
+		fmt.Printf("\tParameters: %+v\n", e.Extra)
 	}
 }
