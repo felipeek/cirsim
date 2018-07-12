@@ -40,8 +40,7 @@ func retrieveSourceValue(e Element, time float64) float64 {
 	}
 }
 
-func mnaSolveLinear(elementList *Element, nodesMap map[string]int) {
-	// identify groups
+func mnaIdentifyGroups(elementList *Element) {
 	currentElement := elementList
 
 	for currentElement != nil {
@@ -62,12 +61,13 @@ func mnaSolveLinear(elementList *Element, nodesMap map[string]int) {
 
 		currentElement = currentElement.Next
 	}
+}
 
-	// assign indices to current nodes
+func assignIndicesToCurrentNodes(elementList *Element, nodesMap map[string]int) map[string]int {
 	currentNodes := make(map[string]int, 1)
 	startingIndex := len(nodesMap)
 
-	currentElement = elementList
+	currentElement := elementList
 	for currentElement != nil {
 		if currentElement.PreserveCurrent {
 			currentNodes[currentElement.Label] = startingIndex
@@ -77,17 +77,28 @@ func mnaSolveLinear(elementList *Element, nodesMap map[string]int) {
 		currentElement = currentElement.Next
 	}
 
+	return currentNodes
+}
+
+func mnaSolveLinear(elementList *Element, nodesMap map[string]int) {
+	mnaIdentifyGroups(elementList)
+	currentNodes := assignIndicesToCurrentNodes(elementList, nodesMap)
+
 	// Create H Matrix
-	H := make([][]float64, len(nodesMap)+len(currentNodes)-1)
-	for i, _ := range H {
-		H[i] = make([]float64, len(nodesMap)+len(currentNodes)-1)
+	staticH := make([][]float64, len(nodesMap)+len(currentNodes)-1)
+	dynamicH := make([][]float64, len(nodesMap)+len(currentNodes)-1)
+	for i, _ := range staticH {
+		staticH[i] = make([]float64, len(nodesMap)+len(currentNodes)-1)
+		dynamicH[i] = make([]float64, len(nodesMap)+len(currentNodes)-1)
 	}
 
 	// Create B Array
-	B := make([]float64, len(nodesMap)+len(currentNodes)-1)
+	staticB := make([]float64, len(nodesMap)+len(currentNodes)-1)
+	dynamicB := make([]float64, len(nodesMap)+len(currentNodes)-1)
 
-	mnaBuildStaticMatrices(elementList, currentNodes, H, B)
-	mnaBuildDynamicMatrices(elementList, currentNodes, H, B, 0)
+	mnaBuildStaticMatrices(elementList, currentNodes, staticH, staticB)
+	mnaBuildDynamicMatrices(elementList, currentNodes, dynamicH, dynamicB, 0, nil, 0)
+	H, B := mnaSumMatricesAndVectors(staticH, staticB, dynamicH, dynamicB)
 
 	LU, P := mnaLUFactorization(H, B)
 	Y := mnaProgressiveSubstitution(LU, B, P)
@@ -120,8 +131,17 @@ func mnaBuildDynamicMatrices(elementList *Element, currentNodes map[string]int, 
 				if t == 0 {
 					capacitorVoltage = e.Extra.(float64)
 				} else {
-					lastVoltage := X[e.Nodes[0]-1] - X[e.Nodes[1]-1]
-					capacitorVoltage = lastVoltage + (tStep/e.Value)*X[currentNodes[e.Label]-1]
+					v1 := 0.0
+					v2 := 0.0
+					if e.Nodes[0] != 0 {
+						v1 = X[e.Nodes[0]-1]
+					}
+					if e.Nodes[1] != 0 {
+						v2 = X[e.Nodes[1]-1]
+					}
+					lastVoltage := v1 - v2
+					lastCurrent := X[currentNodes[e.Label]-1]
+					capacitorVoltage = lastVoltage + (tStep/e.Value)*lastCurrent
 				}
 
 				if e.Nodes[0] != 0 && currentNodes[e.Label] != 0 {
@@ -133,7 +153,7 @@ func mnaBuildDynamicMatrices(elementList *Element, currentNodes map[string]int, 
 					H[currentNodes[e.Label]-1][e.Nodes[1]-1] -= 1.0
 				}
 				if currentNodes[e.Label] != 0 {
-					B[currentNodes[e.Label]-1] = capacitorVoltage
+					B[currentNodes[e.Label]-1] += capacitorVoltage
 				}
 			}
 		case ElementInductor:
@@ -142,8 +162,17 @@ func mnaBuildDynamicMatrices(elementList *Element, currentNodes map[string]int, 
 				if t == 0 {
 					inductorCurrent = e.Extra.(float64)
 				} else {
+					v1 := 0.0
+					v2 := 0.0
+					if e.Nodes[0] != 0 {
+						v1 = X[e.Nodes[0]-1]
+					}
+					if e.Nodes[1] != 0 {
+						v2 = X[e.Nodes[1]-1]
+					}
+					lastVoltage := v1 - v2
 					lastCurrent := X[currentNodes[e.Label]-1]
-					inductorCurrent = lastCurrent + (tStep/e.Value)*(X[e.Nodes[0]-1]-X[e.Nodes[1]-1])
+					inductorCurrent = lastCurrent + (tStep/e.Value)*lastVoltage
 				}
 
 				if e.Nodes[0] != 0 && currentNodes[e.Label] != 0 {
@@ -154,7 +183,7 @@ func mnaBuildDynamicMatrices(elementList *Element, currentNodes map[string]int, 
 				}
 				if currentNodes[e.Label] != 0 {
 					H[currentNodes[e.Label]-1][currentNodes[e.Label]-1] += 1.0
-					B[currentNodes[e.Label]-1] = inductorCurrent
+					B[currentNodes[e.Label]-1] += inductorCurrent
 				}
 			}
 		case ElementCurrentSource:
@@ -437,20 +466,78 @@ func mnaPrintMatrices(H [][]float64, B []float64, X []float64, nodesMap map[stri
 }
 
 func mnaSolveDynamic(elementList *Element, nodesMap map[string]int, tStep float64, tStop float64) {
-	elementListPrint(elementList)
+	mnaIdentifyGroups(elementList)
+	currentNodes := assignIndicesToCurrentNodes(elementList, nodesMap)
 
-	e := elementList
-	for e != nil {
-		if e.ElementType == ElementVoltageSource || e.ElementType == ElementCurrentSource {
-			for t := 0.0; t <= tStop; t += tStep {
-				v := retrieveSourceValue(*e, t)
-				graphCollect(*e, t, v)
-			}
-			err := graphRender(*e)
-			if err != nil {
-				panic(err)
-			}
-		}
-		e = e.Next
+	// Create H Matrix
+	staticH := make([][]float64, len(nodesMap)+len(currentNodes)-1)
+	dynamicH := make([][]float64, len(nodesMap)+len(currentNodes)-1)
+	for i, _ := range staticH {
+		staticH[i] = make([]float64, len(nodesMap)+len(currentNodes)-1)
+		dynamicH[i] = make([]float64, len(nodesMap)+len(currentNodes)-1)
 	}
+
+	// Create B Array
+	staticB := make([]float64, len(nodesMap)+len(currentNodes)-1)
+	dynamicB := make([]float64, len(nodesMap)+len(currentNodes)-1)
+
+	mnaBuildStaticMatrices(elementList, currentNodes, staticH, staticB)
+	mnaBuildDynamicMatrices(elementList, currentNodes, dynamicH, dynamicB, 0, nil, 0)
+	H, B := mnaSumMatricesAndVectors(staticH, staticB, dynamicH, dynamicB)
+
+	LU, P := mnaLUFactorization(H, B)
+	Y := mnaProgressiveSubstitution(LU, B, P)
+	Xp := mnaRegressiveSubstitution(LU, Y, P)
+
+	X := make([][]float64, int(tStop/tStep)+1)
+	for i, _ := range X {
+		X[i] = make([]float64, len(Xp))
+	}
+
+	for i := range X[0] {
+		X[0][i] = Xp[P[i]]
+	}
+
+	currentXIndex := 1
+	for t := tStep; t <= tStop; t += tStep {
+		// generate dynamic H and B again to clean old values
+		dynamicH := make([][]float64, len(nodesMap)+len(currentNodes)-1)
+		for i, _ := range dynamicH {
+			dynamicH[i] = make([]float64, len(nodesMap)+len(currentNodes)-1)
+		}
+		dynamicB := make([]float64, len(nodesMap)+len(currentNodes)-1)
+
+		mnaBuildDynamicMatrices(elementList, currentNodes, dynamicH, dynamicB, t, X[currentXIndex-1], tStep)
+		H, B = mnaSumMatricesAndVectors(staticH, staticB, dynamicH, dynamicB)
+		LU, P = mnaLUFactorization(H, B)
+		Y = mnaProgressiveSubstitution(LU, B, P)
+		Xp = mnaRegressiveSubstitution(LU, Y, P)
+		for i := range X[currentXIndex] {
+			X[currentXIndex][i] = Xp[P[i]]
+		}
+		currentXIndex++
+	}
+
+	genGraphs(elementList, X)
+	fmt.Printf("done")
+}
+
+func mnaSumMatricesAndVectors(H1 [][]float64, B1 []float64, H2 [][]float64, B2 []float64) ([][]float64, []float64) {
+	// Create H Matrix
+	H := make([][]float64, len(H1))
+	for i, _ := range H {
+		H[i] = make([]float64, len(H1[0]))
+	}
+
+	// Create B Array
+	B := make([]float64, len(B1))
+
+	for i := 0; i < len(H); i++ {
+		for j := 0; j < len(H[i]); j++ {
+			H[i][j] = H1[i][j] + H2[i][j]
+		}
+		B[i] = B1[i] + B2[i]
+	}
+
+	return H, B
 }

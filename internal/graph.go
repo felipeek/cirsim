@@ -2,14 +2,9 @@ package internal
 
 import (
 	"bytes"
-	"fmt"
 	"io/ioutil"
 
 	chart "github.com/wcharczuk/go-chart"
-)
-
-var (
-	graphs map[string]*graphValues = make(map[string]*graphValues)
 )
 
 type graphValues struct {
@@ -17,26 +12,37 @@ type graphValues struct {
 	v []float64
 }
 
-func graphCollect(e Element, t float64, v float64) {
-	graph, ok := graphs[e.Label]
-
-	if !ok {
-		graphs[e.Label] = &graphValues{
+func genGraphs(elementList *Element, X [][]float64) {
+	e := elementList
+	for e != nil {
+		gv := graphValues{
 			t: make([]float64, 0),
 			v: make([]float64, 0),
 		}
-		graph = graphs[e.Label]
+		for t, xx := range X {
+			v1 := 0.0
+			v2 := 0.0
+			if e.Nodes[0] != 0 {
+				v1 = xx[e.Nodes[0]-1]
+			}
+			if e.Nodes[1] != 0 {
+				v2 = xx[e.Nodes[1]-1]
+			}
+
+			voltage := v1 - v2
+			gv.t = append(gv.t, float64(t))
+			gv.v = append(gv.v, voltage)
+		}
+		err := graphRender(e.Label, gv)
+		if err != nil {
+			panic(err)
+		}
+		e = e.Next
 	}
 
-	graph.t = append(graph.t, t)
-	graph.v = append(graph.v, v)
 }
 
-func graphRender(e Element) error {
-	v, ok := graphs[e.Label]
-	if !ok {
-		return fmt.Errorf("trying to render graph that does not exist")
-	}
+func graphRender(label string, gv graphValues) error {
 	graph := chart.Chart{
 		XAxis: chart.XAxis{
 			Name:      "t",
@@ -53,8 +59,8 @@ func graphRender(e Element) error {
 				Style: chart.Style{
 					Show: true,
 				},
-				XValues: v.t,
-				YValues: v.v,
+				XValues: gv.t,
+				YValues: gv.v,
 			},
 		},
 	}
@@ -64,5 +70,5 @@ func graphRender(e Element) error {
 	if err != nil {
 		return err
 	}
-	return ioutil.WriteFile("res/"+e.Label+".png", buffer.Bytes(), 0644)
+	return ioutil.WriteFile("res/"+label+".png", buffer.Bytes(), 0644)
 }
