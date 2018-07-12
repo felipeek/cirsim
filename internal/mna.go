@@ -46,7 +46,8 @@ func mnaSolveLinear(elementList *Element, nodesMap map[string]int) {
 
 	for currentElement != nil {
 		if currentElement.ElementType == ElementVoltageSource || currentElement.ElementType == ElementVCVS ||
-			currentElement.ElementType == ElementCCVS {
+			currentElement.ElementType == ElementCCVS || currentElement.ElementType == ElementCapacitor ||
+			currentElement.ElementType == ElementInductor {
 			currentElement.PreserveCurrent = true
 		}
 
@@ -85,7 +86,8 @@ func mnaSolveLinear(elementList *Element, nodesMap map[string]int) {
 	// Create B Array
 	B := make([]float64, len(nodesMap)+len(currentNodes)-1)
 
-	mnaBuildMatrices(elementList, currentNodes, H, B)
+	mnaBuildStaticMatrices(elementList, currentNodes, H, B)
+	mnaBuildDynamicMatrices(elementList, currentNodes, H, B, 0)
 
 	LU, P := mnaLUFactorization(H, B)
 	Y := mnaProgressiveSubstitution(LU, B, P)
@@ -100,18 +102,114 @@ func mnaSolveLinear(elementList *Element, nodesMap map[string]int) {
 	mnaPrintMatrices(H, B, X, nodesMap, currentNodes)
 }
 
-func mnaBuildMatrices(elementList *Element, currentNodes map[string]int, H [][]float64, B []float64) {
+func mnaBuildDynamicMatrices(elementList *Element, currentNodes map[string]int, H [][]float64, B []float64, t float64, X []float64, tStep float64) {
 	e := elementList
 
 	for e != nil {
 		switch e.ElementType {
 		case ElementBJT:
-		case ElementCapacitor:
 		case ElementDiode:
-		case ElementInductor:
 		case ElementMOSFET:
 			fmt.Fprintf(os.Stderr, "MNA Error: Element not implemented.\n")
 			os.Exit(1)
+		case ElementCCCS, ElementCCVS, ElementResistor, ElementVCCS, ElementVCVS:
+			// Treated as static
+		case ElementCapacitor:
+			if e.PreserveCurrent {
+				capacitorVoltage := 0.0
+				if t == 0 {
+					capacitorVoltage = e.Extra.(float64)
+				} else {
+					lastVoltage := X[e.Nodes[0]-1] - X[e.Nodes[1]-1]
+					capacitorVoltage = lastVoltage + (tStep/e.Value)*X[currentNodes[e.Label]-1]
+				}
+
+				if e.Nodes[0] != 0 && currentNodes[e.Label] != 0 {
+					H[e.Nodes[0]-1][currentNodes[e.Label]-1] += 1.0
+					H[currentNodes[e.Label]-1][e.Nodes[0]-1] += 1.0
+				}
+				if e.Nodes[1] != 0 && currentNodes[e.Label] != 0 {
+					H[e.Nodes[1]-1][currentNodes[e.Label]-1] -= 1.0
+					H[currentNodes[e.Label]-1][e.Nodes[1]-1] -= 1.0
+				}
+				if currentNodes[e.Label] != 0 {
+					B[currentNodes[e.Label]-1] = capacitorVoltage
+				}
+			}
+		case ElementInductor:
+			if e.PreserveCurrent {
+				inductorCurrent := 0.0
+				if t == 0 {
+					inductorCurrent = e.Extra.(float64)
+				} else {
+					lastCurrent := X[currentNodes[e.Label]-1]
+					inductorCurrent = lastCurrent + (tStep/e.Value)*(X[e.Nodes[0]-1]-X[e.Nodes[1]-1])
+				}
+
+				if e.Nodes[0] != 0 && currentNodes[e.Label] != 0 {
+					H[e.Nodes[0]-1][currentNodes[e.Label]-1] += 1.0
+				}
+				if e.Nodes[1] != 0 && currentNodes[e.Label] != 0 {
+					H[e.Nodes[1]-1][currentNodes[e.Label]-1] -= 1.0
+				}
+				if currentNodes[e.Label] != 0 {
+					H[currentNodes[e.Label]-1][currentNodes[e.Label]-1] += 1.0
+					B[currentNodes[e.Label]-1] = inductorCurrent
+				}
+			}
+		case ElementCurrentSource:
+			cValue := retrieveSourceValue(*e, t)
+			if !e.PreserveCurrent {
+				if e.Nodes[0] != 0 {
+					B[e.Nodes[0]-1] -= cValue
+				}
+				if e.Nodes[1] != 0 {
+					B[e.Nodes[1]-1] += cValue
+				}
+			} else {
+				if e.Nodes[0] != 0 && currentNodes[e.Label] != 0 {
+					H[e.Nodes[0]-1][currentNodes[e.Label]-1] += 1.0
+				}
+				if e.Nodes[1] != 0 && currentNodes[e.Label] != 0 {
+					H[e.Nodes[1]-1][currentNodes[e.Label]-1] -= 1.0
+				}
+				if currentNodes[e.Label] != 0 {
+					H[currentNodes[e.Label]-1][currentNodes[e.Label]-1] += 1.0
+					B[currentNodes[e.Label]-1] += cValue
+				}
+			}
+
+		case ElementVoltageSource:
+			vValue := retrieveSourceValue(*e, t)
+			if e.PreserveCurrent {
+				if e.Nodes[0] != 0 && currentNodes[e.Label] != 0 {
+					H[e.Nodes[0]-1][currentNodes[e.Label]-1] += 1.0
+					H[currentNodes[e.Label]-1][e.Nodes[0]-1] += 1.0
+				}
+				if e.Nodes[1] != 0 && currentNodes[e.Label] != 0 {
+					H[e.Nodes[1]-1][currentNodes[e.Label]-1] -= 1.0
+					H[currentNodes[e.Label]-1][e.Nodes[1]-1] -= 1.0
+				}
+				if currentNodes[e.Label] != 0 {
+					B[currentNodes[e.Label]-1] += vValue
+				}
+			}
+		}
+
+		e = e.Next
+	}
+}
+
+func mnaBuildStaticMatrices(elementList *Element, currentNodes map[string]int, H [][]float64, B []float64) {
+	e := elementList
+
+	for e != nil {
+		switch e.ElementType {
+		case ElementBJT, ElementDiode, ElementMOSFET:
+			fmt.Fprintf(os.Stderr, "MNA Error: Element not implemented.\n")
+			os.Exit(1)
+		case ElementCapacitor, ElementInductor, ElementCurrentSource, ElementVoltageSource:
+			// Treated as dynamic
 		case ElementCCCS:
 			if !e.PreserveCurrent {
 				controlElement := elementListFindByLabel(elementList, e.Extra.(string))
@@ -149,27 +247,6 @@ func mnaBuildMatrices(elementList *Element, currentNodes map[string]int, H [][]f
 				}
 				if currentNodes[e.Label] != 0 && currentNodes[controlElement.Label] != 0 {
 					H[currentNodes[e.Label]-1][currentNodes[controlElement.Label]-1] -= e.Value
-				}
-			}
-		case ElementCurrentSource:
-			cValue := retrieveSourceValue(*e, 0)
-			if !e.PreserveCurrent {
-				if e.Nodes[0] != 0 {
-					B[e.Nodes[0]-1] -= cValue
-				}
-				if e.Nodes[1] != 0 {
-					B[e.Nodes[1]-1] += cValue
-				}
-			} else {
-				if e.Nodes[0] != 0 && currentNodes[e.Label] != 0 {
-					H[e.Nodes[0]-1][currentNodes[e.Label]-1] += 1.0
-				}
-				if e.Nodes[1] != 0 && currentNodes[e.Label] != 0 {
-					H[e.Nodes[1]-1][currentNodes[e.Label]-1] -= 1.0
-				}
-				if currentNodes[e.Label] != 0 {
-					H[currentNodes[e.Label]-1][currentNodes[e.Label]-1] += 1.0
-					B[currentNodes[e.Label]-1] += cValue
 				}
 			}
 		case ElementResistor:
@@ -243,21 +320,6 @@ func mnaBuildMatrices(elementList *Element, currentNodes map[string]int, H [][]f
 				}
 				if currentNodes[e.Label] != 0 && e.Nodes[3] != 0 {
 					H[currentNodes[e.Label]-1][e.Nodes[3]-1] += e.Value
-				}
-			}
-		case ElementVoltageSource:
-			vValue := retrieveSourceValue(*e, 0)
-			if e.PreserveCurrent {
-				if e.Nodes[0] != 0 && currentNodes[e.Label] != 0 {
-					H[e.Nodes[0]-1][currentNodes[e.Label]-1] += 1.0
-					H[currentNodes[e.Label]-1][e.Nodes[0]-1] += 1.0
-				}
-				if e.Nodes[1] != 0 && currentNodes[e.Label] != 0 {
-					H[e.Nodes[1]-1][currentNodes[e.Label]-1] -= 1.0
-					H[currentNodes[e.Label]-1][e.Nodes[1]-1] -= 1.0
-				}
-				if currentNodes[e.Label] != 0 {
-					B[currentNodes[e.Label]-1] += vValue
 				}
 			}
 		}
