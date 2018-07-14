@@ -9,8 +9,14 @@ Simple spice-based simulator
 4. The binary will be available on `$GOPATH/bin/cirsim`
 5. To run you must provide a spice file and, if you are doing a transient analysis, you must ask to generate the result graphs.
 
-`cirsim use:
- -graphs
-        Generate graphs
-  -path string
-        Spice file path`
+```
+cirsim parameters:
+-graphs
+   Generate graphs
+-path string
+   Spice file path`
+```
+
+For example,
+
+`cirsim -path res/custom.sp -graphs`
