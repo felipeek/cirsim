@@ -78,5 +78,5 @@ func graphRender(label string, gv graphValues) error {
 	if err != nil {
 		return err
 	}
-	return ioutil.WriteFile("res/"+label+".png", buffer.Bytes(), 0644)
+	return ioutil.WriteFile(label+".png", buffer.Bytes(), 0644)
 }
