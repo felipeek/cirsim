@@ -12,34 +12,41 @@ type graphValues struct {
 	v []float64
 }
 
-func genGraphs(elementList *Element, X [][]float64) {
-	e := elementList
-	for e != nil {
-		gv := graphValues{
-			t: make([]float64, 0),
-			v: make([]float64, 0),
-		}
-		for t, xx := range X {
-			v1 := 0.0
-			v2 := 0.0
-			if e.Nodes[0] != 0 {
-				v1 = xx[e.Nodes[0]-1]
+func genAllGraphs(currentNodes map[string]int, nodesMap map[string]int, X [][]float64) error {
+	// Gen graph of all voltages
+	for k, v := range nodesMap {
+		if v != 0 {
+			err := genGraph("voltage_"+k, X, v-1)
+			if err != nil {
+				return err
 			}
-			if e.Nodes[1] != 0 {
-				v2 = xx[e.Nodes[1]-1]
-			}
-
-			voltage := v1 - v2
-			gv.t = append(gv.t, float64(t))
-			gv.v = append(gv.v, voltage)
 		}
-		err := graphRender(e.Label, gv)
-		if err != nil {
-			panic(err)
-		}
-		e = e.Next
 	}
 
+	// Gen graph of all currents
+	for k, v := range currentNodes {
+		if v != 0 {
+			err := genGraph("current_"+k, X, v-1)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
+func genGraph(label string, X [][]float64, xIndex int) error {
+	gv := graphValues{
+		t: make([]float64, 0),
+		v: make([]float64, 0),
+	}
+	for t, v := range X {
+		gv.t = append(gv.t, float64(t))
+		gv.v = append(gv.v, v[xIndex])
+	}
+
+	return graphRender(label, gv)
 }
 
 func graphRender(label string, gv graphValues) error {

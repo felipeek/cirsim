@@ -10,7 +10,9 @@ import (
 
 func main() {
 	var filePath string
+	var generateGraphs bool
 	flag.StringVar(&filePath, "path", "", "Spice file path")
+	flag.BoolVar(&generateGraphs, "graphs", false, "Generate graphs")
 	flag.Parse()
 
 	if filePath == "" {
@@ -25,5 +27,5 @@ func main() {
 		os.Exit(1)
 	}
 
-	internal.ParserInit(filePath)
+	internal.ParserInit(filePath, generateGraphs)
 }

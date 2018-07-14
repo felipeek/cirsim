@@ -489,16 +489,13 @@ func mnaSolveDynamic(elementList *Element, nodesMap map[string]int, tStep float6
 	Y := mnaProgressiveSubstitution(LU, B, P)
 	Xp := mnaRegressiveSubstitution(LU, Y, P)
 
-	X := make([][]float64, int(tStop/tStep)+1)
-	for i, _ := range X {
-		X[i] = make([]float64, len(Xp))
-	}
+	X := make([][]float64, 1)
+	X[0] = make([]float64, len(Xp))
 
 	for i := range X[0] {
 		X[0][i] = Xp[P[i]]
 	}
 
-	currentXIndex := 1
 	for t := tStep; t <= tStop; t += tStep {
 		// generate dynamic H and B again to clean old values
 		dynamicH := make([][]float64, len(nodesMap)+len(currentNodes)-1)
@@ -507,19 +504,25 @@ func mnaSolveDynamic(elementList *Element, nodesMap map[string]int, tStep float6
 		}
 		dynamicB := make([]float64, len(nodesMap)+len(currentNodes)-1)
 
-		mnaBuildDynamicMatrices(elementList, currentNodes, dynamicH, dynamicB, t, X[currentXIndex-1], tStep)
+		mnaBuildDynamicMatrices(elementList, currentNodes, dynamicH, dynamicB, t, X[len(X)-1], tStep)
 		H, B = mnaSumMatricesAndVectors(staticH, staticB, dynamicH, dynamicB)
 		LU, P = mnaLUFactorization(H, B)
 		Y = mnaProgressiveSubstitution(LU, B, P)
 		Xp = mnaRegressiveSubstitution(LU, Y, P)
-		for i := range X[currentXIndex] {
-			X[currentXIndex][i] = Xp[P[i]]
+		newX := make([]float64, len(Xp))
+		for i := range newX {
+			newX[i] = Xp[P[i]]
 		}
-		currentXIndex++
+		X = append(X, newX)
 	}
 
-	genGraphs(elementList, X)
-	fmt.Printf("done")
+	if generateGraphs {
+		err := genAllGraphs(currentNodes, nodesMap, X)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error generating graphs: %s", err)
+			os.Exit(-1)
+		}
+	}
 }
 
 func mnaSumMatricesAndVectors(H1 [][]float64, B1 []float64, H2 [][]float64, B2 []float64) ([][]float64, []float64) {

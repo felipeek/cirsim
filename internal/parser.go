@@ -7,7 +7,11 @@ import (
 	"strconv"
 )
 
-func ParserInit(netListPath string) {
+var (
+	generateGraphs bool
+)
+
+func ParserInit(netListPath string, genGraphs bool) {
 	var token Token
 	lexer := LexerInit(netListPath)
 	nodesMap := make(map[string]int)
@@ -18,6 +22,7 @@ func ParserInit(netListPath string) {
 	tranCommand := false
 	tStep := 0.0
 	tStop := 0.0
+	generateGraphs = genGraphs
 
 	for !lexer.eof {
 		token = LexerNextToken(&lexer)
@@ -669,7 +674,7 @@ func parserParseNumber(numberValue string) (bool, float64) {
 		base, _ := strconv.ParseFloat(numberValue[0:baseNumber], 64)
 		exp, _ := strconv.ParseFloat(numberValue[baseNumber+1:], 64)
 
-		return false, math.Pow(base, exp)
+		return false, base * math.Pow(10, exp)
 	} else if parserIsNumberOnRegularNotation(numberValue) {
 		f, _ := strconv.ParseFloat(numberValue, 64)
 		return false, f
