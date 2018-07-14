@@ -51,6 +51,7 @@ func genGraph(label string, X [][]float64, xIndex int) error {
 
 func graphRender(label string, gv graphValues) error {
 	graph := chart.Chart{
+		Width: 1920,
 		XAxis: chart.XAxis{
 			Name:      "t",
 			NameStyle: chart.StyleShow(),
